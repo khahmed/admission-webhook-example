@@ -25,11 +25,14 @@ var (
 	// TODO(https://github.com/kubernetes/kubernetes/issues/57982)
 	defaulter = runtime.ObjectDefaulter(runtimeScheme)
 
-	conduitVersion    = "rmars/branch"
-	conduitAnnotation = map[string]string{
-		"conduit.io":               "hi-im-injected",
-		"conduit.io/created-by":    "conduit/webhook/" + conduitVersion,
-		"conduit.io/proxy-version": conduitVersion,
+	lsfAnnotation = map[string]string{
+		//"lsf.project":               "project-1",
+		//"lsf.application":    "" ,
+		//"lsf.gpu": "0",
+		//"lsf.queue": "normal",
+		//"lsf.jobGroup": "normal",
+		"lsf.fairshareGroup": "normal",
+		//"lsf.user": "normal",
 	}
 )
 
@@ -45,6 +48,9 @@ func escapeJSONPointer(s string) string {
 var kubeSystemNamespaces = []string{
 	metav1.NamespaceSystem,
 	metav1.NamespacePublic,
+        "default",
+        "istio-system",
+        "cert-manager",
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -109,10 +115,11 @@ func getAdmissionDecision(admReq *v1beta1.AdmissionReview) *v1beta1.AdmissionRes
 		}
 	}
 
-	patch, err := patchConfig(&pod, conduitAnnotation)
+        lsfAnnotation["lsf.fairshareGroup"] = req.Namespace
+	patch, err := patchConfig(&pod, lsfAnnotation)
 
 	if err != nil {
-		log.Printf("Error creating conduit patch: %v", err)
+		log.Printf("Error creating lsf patch: %v", err)
 		return admissionError(err)
 	}
 
@@ -130,6 +137,14 @@ func patchConfig(pod *corev1.Pod, annotations map[string]string) ([]byte, error)
 	var patch []jsonpatch.JsonPatchOperation
 
 	patch = append(patch, addAnnotations(pod.Annotations, annotations)...)
+
+
+        op := "add"
+        patch = append(patch, jsonpatch.JsonPatchOperation{
+                       Operation: op,
+                        Path:      "/spec/schedulerName",
+                        Value:     "lsf",
+                        })
 	return json.Marshal(patch)
 }
 

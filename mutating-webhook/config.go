@@ -86,9 +86,9 @@ func configTLS(clientset *kubernetes.Clientset) *tls.Config {
 func selfRegistration(clientset *kubernetes.Clientset, caCert []byte) {
 	time.Sleep(10 * time.Second)
 	client := clientset.AdmissionregistrationV1beta1().MutatingWebhookConfigurations()
-	_, err := client.Get("conduit-inject-webhook", metav1.GetOptions{})
+	_, err := client.Get("spectrum-inject-webhook", metav1.GetOptions{})
 	if err == nil {
-		if err2 := client.Delete("conduit-inject-webhook", nil); err2 != nil {
+		if err2 := client.Delete("spectrum-inject-webhook", nil); err2 != nil {
 			glog.Fatal(err2)
 		}
 	}
@@ -96,11 +96,11 @@ func selfRegistration(clientset *kubernetes.Clientset, caCert []byte) {
 
 	webhookConfig := &v1beta1.MutatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "conduit-inject-webhook",
+			Name: "spectrum-inject-webhook",
 		},
 		Webhooks: []v1beta1.Webhook{
 			{
-				Name: "conduit-inject.buoyant.io",
+				Name: "spectrum-inject.ibm.com",
 				Rules: []v1beta1.RuleWithOperations{
 					{
 						Operations: []v1beta1.OperationType{v1beta1.Create, v1beta1.Update},
@@ -122,8 +122,8 @@ func selfRegistration(clientset *kubernetes.Clientset, caCert []byte) {
 				FailurePolicy: &failurePolicy,
 				ClientConfig: v1beta1.WebhookClientConfig{
 					Service: &v1beta1.ServiceReference{
-						Namespace: "default",
-						Name:      "webhook",
+						Namespace: "kube-system",
+						Name:      "spectrum-webhook",
 					},
 					CABundle: caCert,
 				},

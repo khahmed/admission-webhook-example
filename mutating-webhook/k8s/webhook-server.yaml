@@ -3,20 +3,20 @@ apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
   labels:
-    app: conduit-inject
-  name: conduit-inject
+    app: spectrum-inject
+  name: spectrum-inject
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: conduit-inject
-      name: conduit-inject
+        app: spectrum-inject
+      name: spectrum-inject
     spec:
       containers:
         - name: webhook
-          image: gcr.io/rmars/mutating-webhook:0.0.1
-          imagePullPolicy: Never
+          image: docker.io/kahmed0822/mutating-webhook:0.0.1
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
 ---
@@ -25,10 +25,10 @@ kind: Service
 metadata:
   labels:
     role: webhook
-  name: webhook
+  name: spectrum-webhook
 spec:
   ports:
     - port: 443
       targetPort: 8080
   selector:
-    app: conduit-inject
+    app: spectrum-inject

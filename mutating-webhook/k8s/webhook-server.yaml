@@ -19,6 +19,9 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
+          env:
+          - name: ALLOWED_NAMESPACES
+            value: "proj-1 proj-2"
 ---
 apiVersion: v1
 kind: Service

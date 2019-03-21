@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
-
+//        "os"
 	"github.com/mattbaird/jsonpatch"
 
 	"k8s.io/api/admission/v1beta1"
@@ -186,6 +186,15 @@ func shouldInject(metadata *metav1.ObjectMeta) bool {
 			shouldInject = false
 		}
 	}
+
+/*
+        allowed :=  os.Getenv("ALLOWED_NAMESPACES")  
+
+        if ( allowed != "" && strings.Contains(allowed, metadata.Namespace) )  {
+            // TODO:Should really parse env var and look at each ns
+            shouldInject = true 
+        }
+*/
 
 	return shouldInject
 }

@@ -107,8 +107,9 @@ func getAdmissionDecision(admReq *v1beta1.AdmissionReview) *v1beta1.AdmissionRes
 	log.Printf("AdmissionReview for Kind=%v Namespace=%v Name=%v UID=%v Operation=%v UserInfo=%v",
 		req.Kind, req.Namespace, req.Name, req.UID, req.Operation, req.UserInfo)
 
-	if !shouldInject(&pod.ObjectMeta) {
-		log.Printf("Skipping inject for %s %s", pod.Namespace, pod.Name)
+	//log.Printf("calling shouldInject for pod  %s %s objectMeta.Namespace=%s", pod.Namespace, pod.Name, pod.ObjectMeta.Namespace)
+	if !shouldInject(req.Namespace) {
+		log.Printf("Skipping inject for %s %s", req.Namespace, req.Name)
 		return &v1beta1.AdmissionResponse{
 			Allowed: true,
 			UID:     req.UID,
@@ -177,13 +178,15 @@ func addAnnotations(current map[string]string, toAdd map[string]string) []jsonpa
 	return patch
 }
 
-func shouldInject(metadata *metav1.ObjectMeta) bool {
+func shouldInject(namespace string) bool {
 	shouldInject := true
 
 	// don't attempt to inject pods in the Kubernetes system namespaces
 	for _, ns := range kubeSystemNamespaces {
-		if metadata.Namespace == ns {
+		log.Printf("Checking inject for %s %s", ns,  namespace)
+		if namespace  == ns {
 			shouldInject = false
+                        break
 		}
 	}
 

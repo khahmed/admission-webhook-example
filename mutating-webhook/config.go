@@ -110,14 +110,6 @@ func selfRegistration(clientset *kubernetes.Clientset, caCert []byte) {
 							Resources:   []string{"pods"},
 						},
 					},
-					{
-						Operations: []v1beta1.OperationType{v1beta1.Create, v1beta1.Update},
-						Rule: v1beta1.Rule{
-							APIGroups:   []string{"extensions"},
-							APIVersions: []string{"v1"},
-							Resources:   []string{"deployments"},
-						},
-					},
 				},
 				FailurePolicy: &failurePolicy,
 				ClientConfig: v1beta1.WebhookClientConfig{

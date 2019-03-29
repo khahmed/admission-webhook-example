@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
-//        "os"
+        "os"
 	"github.com/mattbaird/jsonpatch"
 
 	"k8s.io/api/admission/v1beta1"
@@ -29,7 +29,7 @@ var (
 		//"lsf.project":               "project-1",
 		//"lsf.application":    "" ,
 		//"lsf.gpu": "0",
-		//"lsf.queue": "normal",
+	        "lsf.queue": "normal",
 		//"lsf.jobGroup": "normal",
 		"lsf.fairshareGroup": "normal",
 		//"lsf.user": "normal",
@@ -52,6 +52,10 @@ var kubeSystemNamespaces = []string{
         "istio-system",
         "cert-manager",
 }
+
+var allowedNamespaces  = []string{
+}
+
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	log.Println("Handling a request")
@@ -106,6 +110,9 @@ func getAdmissionDecision(admReq *v1beta1.AdmissionReview) *v1beta1.AdmissionRes
 
 	log.Printf("AdmissionReview for Kind=%v Namespace=%v Name=%v UID=%v Operation=%v UserInfo=%v",
 		req.Kind, req.Namespace, req.Name, req.UID, req.Operation, req.UserInfo)
+        //log.Printf("Pod=%v", pod)
+        log.Printf("Pod.Annotations=%v", pod.Annotations)
+        //log.Printf("Pod.Labels=%v", pod.Labels)
 
 	//log.Printf("calling shouldInject for pod  %s %s objectMeta.Namespace=%s", pod.Namespace, pod.Name, pod.ObjectMeta.Namespace)
 	if !shouldInject(req.Namespace) {
@@ -117,6 +124,7 @@ func getAdmissionDecision(admReq *v1beta1.AdmissionReview) *v1beta1.AdmissionRes
 	}
 
         lsfAnnotation["lsf.fairshareGroup"] = req.Namespace
+ 
 	patch, err := patchConfig(&pod, lsfAnnotation)
 
 	if err != nil {
@@ -183,27 +191,33 @@ func shouldInject(namespace string) bool {
 
 	// don't attempt to inject pods in the Kubernetes system namespaces
 	for _, ns := range kubeSystemNamespaces {
-		log.Printf("Checking inject for %s %s", ns,  namespace)
+		//log.Printf("Checking inject for %s %s", ns,  namespace)
 		if namespace  == ns {
 			shouldInject = false
                         break
 		}
 	}
 
-/*
-        allowed :=  os.Getenv("ALLOWED_NAMESPACES")  
-
-        if ( allowed != "" && strings.Contains(allowed, metadata.Namespace) )  {
-            // TODO:Should really parse env var and look at each ns
-            shouldInject = true 
+        if len (allowedNamespaces) > 0  {
+            shouldInject = false
+            for  _,ns := range allowedNamespaces  {
+                log.Printf("Checking inject for allowed namespace %s %s", ns,  namespace)
+                if namespace == ns {
+                    shouldInject = true
+                }
+            }
         }
-*/
 
 	return shouldInject
 }
 
 func main() {
 	addr := flag.String("addr", ":8080", "address to serve on")
+
+        allowed :=  os.Getenv("ALLOWED_NAMESPACES")  
+        if ( allowed != "" ) {
+            allowedNamespaces = strings.Fields(allowed)
+        }
 
 	http.HandleFunc("/", handler)
 

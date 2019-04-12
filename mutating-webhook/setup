@@ -1,0 +1,2 @@
+
+ kubectl create -f k8s/webhook-server.yaml -n kube-system

@@ -26,13 +26,13 @@ var (
 	defaulter = runtime.ObjectDefaulter(runtimeScheme)
 
 	lsfAnnotation = map[string]string{
-		//"lsf.project":               "project-1",
-		//"lsf.application":    "" ,
-		//"lsf.gpu": "0",
-	        "lsf.queue": "normal",
-		//"lsf.jobGroup": "normal",
-		"lsf.fairshareGroup": "normal",
-		//"lsf.user": "normal",
+		//"lsf.ibm.com/project":               "project-1",
+		//"lsf.ibm.com/application":    "" ,
+		//"lsf.ibm.com/gpu": "0",
+	        //"lsf.ibm.com/queue": "normal",
+		//"lsf.ibm.com/jobGroup": "normal",
+	        //"lsf.ibm.com/fairshareGroup": "normal",
+		//"lsf.ibm.com/user": "normal",
 	}
 )
 
@@ -54,6 +54,12 @@ var kubeSystemNamespaces = []string{
 }
 
 var allowedNamespaces  = []string{
+}
+var goldNamespaces  = []string{
+}
+var silverNamespaces  = []string{
+}
+var bronzeNamespaces  = []string{
 }
 
 
@@ -123,7 +129,16 @@ func getAdmissionDecision(admReq *v1beta1.AdmissionReview) *v1beta1.AdmissionRes
 		}
 	}
 
-        lsfAnnotation["lsf.fairshareGroup"] = req.Namespace
+/*
+        if req.Namespace  ==  "proj-1"  {
+             lsfAnnotation["lsf.ibm.com/fairshareGroup"] = "gold"
+        } else if req.Namespace == "proj-2"  {
+             lsfAnnotation["lsf.ibm.com/fairshareGroup"] = "silver"
+        } else  {
+             lsfAnnotation["lsf.ibm.com/fairshareGroup"] = "bronze"
+        }
+*/
+        lsfAnnotation["lsf.ibm.com/fairshareGroup"] = getServiceClass( req.Namespace)
  
 	patch, err := patchConfig(&pod, lsfAnnotation)
 
@@ -211,12 +226,44 @@ func shouldInject(namespace string) bool {
 	return shouldInject
 }
 
+
+func getServiceClass(namespace string) string {
+    for  _,ns := range goldNamespaces  {
+        if namespace == ns {
+            return "gold" 
+        }
+    }
+    for  _,ns := range silverNamespaces  {
+        if namespace == ns {
+            return "silver" 
+        }
+    }
+    for  _,ns := range bronzeNamespaces  {
+        if namespace == ns {
+            return "bronze" 
+        }
+    }
+    return "bronze"
+}
+
 func main() {
 	addr := flag.String("addr", ":8080", "address to serve on")
 
         allowed :=  os.Getenv("ALLOWED_NAMESPACES")  
         if ( allowed != "" ) {
             allowedNamespaces = strings.Fields(allowed)
+        }
+        gold:=  os.Getenv("GOLD_NAMESPACES")  
+        if ( gold != "" ) {
+            goldNamespaces = strings.Fields(gold)
+        }
+        silver:=  os.Getenv("SILVER_NAMESPACES")  
+        if ( silver != "" ) {
+            silverNamespaces = strings.Fields(silver)
+        }
+        bronze:=  os.Getenv("BRONZE_NAMESPACES")  
+        if ( bronze != "" ) {
+            bronzeNamespaces = strings.Fields(bronze)
         }
 
 	http.HandleFunc("/", handler)

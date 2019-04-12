@@ -13,15 +13,37 @@ spec:
         app: spectrum-inject
       name: spectrum-inject
     spec:
+      nodeSelector:
+        node-role.kubernetes.io/master: "true"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: beta.kubernetes.io/arch
+                operator: In
+                values:
+                - "ppc64le"
+                - "amd64"
+      tolerations:
+        - key: "dedicated"
+          operator: "Exists"
+          effect: NoSchedule
       containers:
         - name: webhook
-          image: docker.io/kahmed0822/mutating-webhook:0.0.2
+          image: docker.io/kahmed0822/mutating-webhook:0.0.3
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
           - name: ALLOWED_NAMESPACES
             value: "proj-1 proj-2 proj-3"
+          - name: GOLD_NAMESPACES 
+            value: "proj-1"
+          - name: SILVER_NAMESPACES 
+            value: "proj-2"
+          - name: BRONZE_NAMESPACES 
+            value: "proj-3"
 ---
 apiVersion: v1
 kind: Service

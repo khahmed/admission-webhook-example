@@ -3,7 +3,7 @@
 This mutatating webhook
 [admission controller](https://kubernetes.io/docs/admin/admission-controllers).
 can be used to automatically inject pod parameters to allow scheduling of pods through the 
-[Spectrum LSF-Kuberentes integration ] ( https://github.com/IBMSpectrumComputing/lsf-kubernetes/)
+[Spectrum LSF-Kuberentes integration ](https://github.com/IBMSpectrumComputing/lsf-kubernetes/)
 
 
 This is a toy example. It is based on the examples in [caesarxuchao/example-webhook-admission-controller](https://github.com/caesarxuchao/example-webhook-admission-controller) and

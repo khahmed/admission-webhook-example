@@ -6,8 +6,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
-        "os"
+
 	"github.com/mattbaird/jsonpatch"
 
 	"k8s.io/api/admission/v1beta1"
@@ -29,9 +30,9 @@ var (
 		//"lsf.ibm.com/project":               "project-1",
 		//"lsf.ibm.com/application":    "" ,
 		//"lsf.ibm.com/gpu": "0",
-	        //"lsf.ibm.com/queue": "normal",
+		//"lsf.ibm.com/queue": "normal",
 		//"lsf.ibm.com/jobGroup": "normal",
-	        //"lsf.ibm.com/fairshareGroup": "normal",
+		//"lsf.ibm.com/fairshareGroup": "normal",
 		//"lsf.ibm.com/user": "normal",
 	}
 )
@@ -48,20 +49,24 @@ func escapeJSONPointer(s string) string {
 var kubeSystemNamespaces = []string{
 	metav1.NamespaceSystem,
 	metav1.NamespacePublic,
-        "default",
-        "istio-system",
-        "cert-manager",
+	"default",
+	"istio-system",
+	"cert-manager",
 }
 
-var allowedNamespaces  = []string{
-}
-var goldNamespaces  = []string{
-}
-var silverNamespaces  = []string{
-}
-var bronzeNamespaces  = []string{
+var allowedNamespaces = []string{}
+var goldNamespaces = []string{}
+var silverNamespaces = []string{}
+var bronzeNamespaces = []string{}
+
+var mapNsNameToFsGroup = true
+var mapUserFileSystemInfo = false
+
+type SecurityContext  struct {
+   runAsUser, runAsGroup, fsGroup int
 }
 
+var m  map[string]SecurityContext
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	log.Println("Handling a request")
@@ -116,9 +121,9 @@ func getAdmissionDecision(admReq *v1beta1.AdmissionReview) *v1beta1.AdmissionRes
 
 	log.Printf("AdmissionReview for Kind=%v Namespace=%v Name=%v UID=%v Operation=%v UserInfo=%v",
 		req.Kind, req.Namespace, req.Name, req.UID, req.Operation, req.UserInfo)
-        //log.Printf("Pod=%v", pod)
-        log.Printf("Pod.Annotations=%v", pod.Annotations)
-        //log.Printf("Pod.Labels=%v", pod.Labels)
+	//log.Printf("Pod=%v", pod)
+	log.Printf("Pod.Annotations=%v", pod.Annotations)
+	//log.Printf("Pod.Labels=%v", pod.Labels)
 
 	//log.Printf("calling shouldInject for pod  %s %s objectMeta.Namespace=%s", pod.Namespace, pod.Name, pod.ObjectMeta.Namespace)
 	if !shouldInject(req.Namespace) {
@@ -129,17 +134,17 @@ func getAdmissionDecision(admReq *v1beta1.AdmissionReview) *v1beta1.AdmissionRes
 		}
 	}
 
-/*
-        if req.Namespace  ==  "proj-1"  {
-             lsfAnnotation["lsf.ibm.com/fairshareGroup"] = "gold"
-        } else if req.Namespace == "proj-2"  {
-             lsfAnnotation["lsf.ibm.com/fairshareGroup"] = "silver"
-        } else  {
-             lsfAnnotation["lsf.ibm.com/fairshareGroup"] = "bronze"
-        }
-*/
-        lsfAnnotation["lsf.ibm.com/fairshareGroup"] = getServiceClass( req.Namespace)
- 
+	/*
+	   if req.Namespace  ==  "proj-1"  {
+	        lsfAnnotation["lsf.ibm.com/fairshareGroup"] = "gold"
+	   } else if req.Namespace == "proj-2"  {
+	        lsfAnnotation["lsf.ibm.com/fairshareGroup"] = "silver"
+	   } else  {
+	        lsfAnnotation["lsf.ibm.com/fairshareGroup"] = "bronze"
+	   }
+	*/
+	lsfAnnotation["lsf.ibm.com/fairshareGroup"] = getServiceClass(req.Namespace)
+
 	patch, err := patchConfig(&pod, lsfAnnotation)
 
 	if err != nil {
@@ -161,14 +166,42 @@ func patchConfig(pod *corev1.Pod, annotations map[string]string) ([]byte, error)
 	var patch []jsonpatch.JsonPatchOperation
 
 	patch = append(patch, addAnnotations(pod.Annotations, annotations)...)
+	op := "add"
+	patch = append(patch, jsonpatch.JsonPatchOperation{
+		Operation: op,
+		Path:      "/spec/schedulerName",
+		Value:     "lsf",
+	})
 
-
-        op := "add"
-        patch = append(patch, jsonpatch.JsonPatchOperation{
-                       Operation: op,
-                        Path:      "/spec/schedulerName",
-                        Value:     "lsf",
-                        })
+        user :=  annotations["lsf.ibm.com/user"]
+	log.Printf("Looking up if user %s in table", user )
+        val, ok  := m[user]
+        if ok {
+	   log.Printf("Found  user %s %s", user, mapUserFileSystemInfo )
+        }
+        if  user !=  "" && mapUserFileSystemInfo  && ok {
+            op = "add"
+	    log.Printf("Patching runAsUser %s", val.runAsUser)
+	    patch = append(patch, jsonpatch.JsonPatchOperation{
+		Operation: op,
+		Path:      "/spec/securityContext/runAsUser",
+		Value:     val.runAsUser,
+	    })
+            op = "add"
+	    log.Printf("Patching runAsGroup %s", val.runAsGroup)
+	    patch = append(patch, jsonpatch.JsonPatchOperation{
+		Operation: op,
+		Path:      "/spec/securityContext/runAsGroup",
+		Value:     val.runAsGroup,
+	    })
+            op = "add"
+	    patch = append(patch, jsonpatch.JsonPatchOperation{
+		Operation: op,
+		Path:      "/spec/securityContext/fsGroup",
+		Value:     val.fsGroup,
+	    })
+        
+        }
 	return json.Marshal(patch)
 }
 
@@ -207,65 +240,87 @@ func shouldInject(namespace string) bool {
 	// don't attempt to inject pods in the Kubernetes system namespaces
 	for _, ns := range kubeSystemNamespaces {
 		//log.Printf("Checking inject for %s %s", ns,  namespace)
-		if namespace  == ns {
+		if namespace == ns {
 			shouldInject = false
-                        break
+			break
 		}
 	}
 
-        if len (allowedNamespaces) > 0  {
-            shouldInject = false
-            for  _,ns := range allowedNamespaces  {
-                log.Printf("Checking inject for allowed namespace %s %s", ns,  namespace)
-                if namespace == ns {
-                    shouldInject = true
-                }
-            }
-        }
+	if len(allowedNamespaces) > 0 {
+		shouldInject = false
+		for _, ns := range allowedNamespaces {
+			log.Printf("Checking inject for allowed namespace %s %s", ns, namespace)
+			if namespace == ns {
+				shouldInject = true
+			}
+		}
+	}
 
 	return shouldInject
 }
 
-
 func getServiceClass(namespace string) string {
-    for  _,ns := range goldNamespaces  {
-        if namespace == ns {
-            return "gold" 
-        }
-    }
-    for  _,ns := range silverNamespaces  {
-        if namespace == ns {
-            return "silver" 
-        }
-    }
-    for  _,ns := range bronzeNamespaces  {
-        if namespace == ns {
-            return "bronze" 
-        }
-    }
-    return "bronze"
+	// For hiearchical FS we just return the namespace name as the FS groupname
+	if mapNsNameToFsGroup == true {
+		return namespace
+	}
+	for _, ns := range goldNamespaces {
+		if namespace == ns {
+			return "gold"
+		}
+	}
+	for _, ns := range silverNamespaces {
+		if namespace == ns {
+			return "silver"
+		}
+	}
+	for _, ns := range bronzeNamespaces {
+		if namespace == ns {
+			return "bronze"
+		}
+	}
+	return "bronze"
 }
 
 func main() {
 	addr := flag.String("addr", ":8080", "address to serve on")
 
-        allowed :=  os.Getenv("ALLOWED_NAMESPACES")  
-        if ( allowed != "" ) {
-            allowedNamespaces = strings.Fields(allowed)
-        }
-        gold:=  os.Getenv("GOLD_NAMESPACES")  
-        if ( gold != "" ) {
-            goldNamespaces = strings.Fields(gold)
-        }
-        silver:=  os.Getenv("SILVER_NAMESPACES")  
-        if ( silver != "" ) {
-            silverNamespaces = strings.Fields(silver)
-        }
-        bronze:=  os.Getenv("BRONZE_NAMESPACES")  
-        if ( bronze != "" ) {
-            bronzeNamespaces = strings.Fields(bronze)
+	allowed := os.Getenv("ALLOWED_NAMESPACES")
+	if allowed != "" {
+		allowedNamespaces = strings.Fields(allowed)
+	}
+	gold := os.Getenv("GOLD_NAMESPACES")
+	if gold != "" {
+		goldNamespaces = strings.Fields(gold)
+	}
+	silver := os.Getenv("SILVER_NAMESPACES")
+	if silver != "" {
+		silverNamespaces = strings.Fields(silver)
+	}
+	bronze := os.Getenv("BRONZE_NAMESPACES")
+	if bronze != "" {
+		bronzeNamespaces = strings.Fields(bronze)
+	}
+	mapAllowedNsNameToFSGroup := os.Getenv("MAP_NS_TO_FSGROUP")
+	if mapAllowedNsNameToFSGroup != "" || mapAllowedNsNameToFSGroup == "N" {
+		mapNsNameToFsGroup = false
+	} else {
+		mapNsNameToFsGroup = true
+	}
+	injectFileSystemInfo := os.Getenv("INJECT_FILESYSTEM_INFO")
+	if injectFileSystemInfo != "" &&  injectFileSystemInfo == "N" {
+             mapUserFileSystemInfo = false
+        } else {
+             mapUserFileSystemInfo = true
+             // Just create a dummy map for test
+	     log.Printf("Creating user security context map" )
+             m = make(map[string]SecurityContext)
+             m["joe"] = SecurityContext{1000,1000,1000,}
+             m["ann"] = SecurityContext{1001,1001,2000,}
+             m["jim"] = SecurityContext{1002,1002,3000,}
         }
 
+        
 	http.HandleFunc("/", handler)
 
 	flag.CommandLine.Parse([]string{}) // hack fix for https://github.com/kubernetes/kubernetes/issues/17162

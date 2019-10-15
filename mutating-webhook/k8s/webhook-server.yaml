@@ -36,6 +36,10 @@ spec:
           ports:
             - containerPort: 8080
           env:
+          - name: INJECT_FILESYSTEM_INFO
+            value: "Y"
+          - name: MAP_NS_TO_FSGROUP
+            value: "Y"
           - name: ALLOWED_NAMESPACES
             value: "proj-1 proj-2 proj-3"
           - name: GOLD_NAMESPACES 
